@@ -4,11 +4,11 @@ from typing import Literal
 
 @dataclass
 class ETLConfig:
+    """
+    Simple config holder — keeps all the paths and options in one place.
+    """
     input_dir: Path
     output_dir: Path
     output_format: Literal["parquet", "sqlite"] = "parquet"
     sqlite_db_name: str = "quickshop_etl.db"
-    products_file: str = "products.csv"
-    inventory_file: str = "inventory.csv"
-    # Support either a single orders.csv or multiple files like orders_YYYYMMDD.csv
     orders_pattern: str = "orders*.csv"

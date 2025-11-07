@@ -1,7 +1,7 @@
 class ValidationError(Exception):
-    """Raised when input CSV validation fails."""
+    """Something's wrong with the input data — bad column, wrong type, etc."""
     pass
 
 class ETLError(Exception):
-    """Generic ETL exception."""
+    """General ETL problem — file missing, write failed, etc."""
     pass

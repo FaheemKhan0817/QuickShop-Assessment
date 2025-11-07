@@ -1,249 +1,185 @@
-from pathlib import Path
-from typing import Dict, Optional, List
-import pandas as pd
 import logging
-from datetime import datetime
-from .exception import ValidationError, ETLError
-from .io import read_csv, write_parquet, write_sqlite
-from .config import ETLConfig
 import glob
+from pathlib import Path
+from typing import List, Optional, Dict
+from datetime import datetime
+import pandas as pd
+import re
 
-logger = logging.getLogger(__name__)
+from .config import ETLConfig
+from .io import read_csv, write_parquet, write_sqlite
+from .exception import ValidationError, ETLError
 
-# Expected schemas as column -> pandas dtype hint
-EXPECTED_PRODUCTS = {
+log = logging.getLogger(__name__)
+
+# --- Expected column types ---
+PRODUCTS_SCHEMA = {
     "product_id": "int",
     "product_name": "str",
     "category": "str",
     "price": "float",
 }
 
-EXPECTED_INVENTORY = {
+INVENTORY_SCHEMA = {
     "product_id": "int",
     "warehouse_id": "str",
     "stock_on_hand": "int",
     "last_restock_date": "date",
 }
 
-EXPECTED_ORDERS = {
+ORDERS_SCHEMA = {
     "order_id": "int",
     "order_date": "date",
+    "user_id": "int",
     "product_id": "int",
     "qty": "int",
     "unit_price": "float",
-    "user_id": "int",
     "order_status": "str",
+    "order_total": "float",  # we'll add this
 }
 
-def _validate_columns(df: pd.DataFrame, expected: Dict[str, str]) -> None:
-    missing = [c for c in expected.keys() if c not in df.columns]
+def _check_columns(df: pd.DataFrame, expected: Dict[str, str], name: str) -> None:
+    missing = [col for col in expected if col not in df.columns]
     if missing:
-        logger.error("Missing columns: %s", missing)
-        raise ValidationError(f"Missing columns: {missing}")
+        raise ValidationError(f"[{name}] Missing columns: {', '.join(missing)}")
 
-def _coerce_columns(df: pd.DataFrame, expected: Dict[str, str], df_name: str) -> pd.DataFrame:
-    import pandas as pd
+def _cast_column(series: pd.Series, col_type: str, col_name: str):
+    try:
+        if col_type == "int":
+            return pd.to_numeric(series, errors='raise').astype('Int64')
+        if col_type == "float":
+            return pd.to_numeric(series, errors='raise')
+        if col_type == "date":
+            return pd.to_datetime(series, errors='raise').dt.date
+        if col_type == "str":
+            return series.astype(str)
+        return series
+    except Exception as e:
+        raise ValidationError(f"Failed to convert {col_name}: {e}")
 
-    _validate_columns(df, expected)
-
+def validate_df(df: pd.DataFrame, schema: Dict[str, str], name: str) -> pd.DataFrame:
+    """Validate columns and coerce types. Raise ValidationError on failure."""
+    _check_columns(df, schema, name)
     df = df.copy()
-    errors = []
-    for col, typ in expected.items():
-        try:
-            if typ == "int":
-                # Use nullable integer dtype
-                df[col] = pd.to_numeric(df[col], errors="raise", downcast="integer").astype("Int64")
-            elif typ == "float":
-                df[col] = pd.to_numeric(df[col], errors="raise").astype(float)
-            elif typ == "date":
-                df[col] = pd.to_datetime(df[col], errors="raise").dt.normalize()
-            elif typ == "str":
-                df[col] = df[col].astype(str)
-            else:
-                df[col] = df[col]
-        except Exception as e:
-            errors.append(f"{df_name}.{col}: {e}")
-    if errors:
-        logger.error("Type coercion errors: %s", errors)
-        raise ValidationError("Type coercion errors: " + "; ".join(errors))
+    for col, typ in schema.items():
+        df[col] = _cast_column(df[col], typ, f"{name}.{col}")
     return df
 
-def validate_products(df: pd.DataFrame) -> pd.DataFrame:
-    return _coerce_columns(df, EXPECTED_PRODUCTS, "products")
+def validate_products(df): return validate_df(df, PRODUCTS_SCHEMA, "products")
+def validate_inventory(df): return validate_df(df, INVENTORY_SCHEMA, "inventory")
+def validate_orders(df): return validate_df(df, ORDERS_SCHEMA, "orders")
 
-def validate_inventory(df: pd.DataFrame) -> pd.DataFrame:
-    return _coerce_columns(df, EXPECTED_INVENTORY, "inventory")
+# --- File discovery ---
+def _find_order_files(base_dir: Path, pattern: str, start: Optional[datetime], end: Optional[datetime]) -> List[Path]:
+    """Find order files, optionally filter by date in filename."""
+    matches = sorted(Path(p) for p in glob.glob(str(base_dir / pattern)))
+    if not (start or end):
+        return matches
 
-def validate_orders(df: pd.DataFrame) -> pd.DataFrame:
-    return _coerce_columns(df, EXPECTED_ORDERS, "orders")
+    filtered = []
+    for path in matches:
+        # Look for YYYYMMDD in filename like orders_20251023.csv
+        m = re.search(r"(\d{8})", path.stem)
+        if m:
+            try:
+                file_date = datetime.strptime(m.group(1), "%Y%m%d").date()
+                if (not start or file_date >= start.date()) and (not end or file_date <= end.date()):
+                    filtered.append(path)
+            except ValueError:
+                pass  # skip bad date
+        else:
+            filtered.append(path)  # no date? include anyway
+    return filtered
 
-def _discover_order_files(input_dir: Path, pattern: str) -> List[Path]:
-    """
-    Discover order CSV files in input_dir matching pattern.
-    Prefer a single 'orders.csv' if present, otherwise glob 'orders*.csv'.
-    Returns a list of Path objects. If none found, returns empty list.
-    """
-    input_dir = Path(input_dir)
-    # exact file
-    single = input_dir / "orders.csv"
-    if single.exists():
-        logger.debug("Found single orders.csv at %s", single)
-        return [single]
-
-    # glob pattern (e.g., orders_*.csv or orders*.csv)
-    glob_pattern = str(input_dir / pattern)
-    files = [Path(p) for p in glob.glob(glob_pattern)]
-    files_sorted = sorted(files)
-    logger.debug("Discovered %d order files with pattern %s", len(files_sorted), glob_pattern)
-    return files_sorted
-
-def _read_and_concat_orders(files: List[Path]) -> pd.DataFrame:
-    """
-    Read multiple order CSVs and concatenate into a single DataFrame.
-    Raises ETLError if no files provided.
-    """
-    if not files:
-        raise ETLError("No order files found to read.")
-    frames = []
-    for p in files:
-        logger.debug("Reading orders file: %s", p)
-        try:
-            df = read_csv(p)
-            # keep a column to track source file (optional, useful for debugging)
-            df["_source_file"] = p.name
-            frames.append(df)
-        except Exception as e:
-            logger.exception("Failed to read orders file %s: %s", p, e)
-            raise ETLError(f"Failed to read orders file {p}: {e}")
-    combined = pd.concat(frames, ignore_index=True, sort=False)
-    logger.info("Combined %d order records from %d files", len(combined), len(files))
-    return combined
-
-def transform_orders(
-    orders: pd.DataFrame,
-    products: pd.DataFrame,
-    inventory: Optional[pd.DataFrame] = None,
-    keep_cancelled: bool = False
-) -> pd.DataFrame:
-    """
-    Transform and enrich orders dataset:
-    - compute order_total = qty * unit_price
-    - filter to completed orders by default
-    - join product_name and category
-    - optionally join inventory (latest stock_on_hand)
-    """
+# --- Transformation ---
+def enrich_orders(orders: pd.DataFrame, products: pd.DataFrame, inventory: pd.DataFrame) -> pd.DataFrame:
+    """Join product info, calculate total, keep only completed."""
     orders = orders.copy()
-    logger.debug("Starting transformation on %d orders", len(orders))
+    orders["order_total"] = (orders["qty"] * orders["unit_price"]).round(2)
 
-    # Ensure numeric types for calculation; rely on validate_orders to have coerced types where possible
-    orders["order_total"] = (orders["qty"].astype(float) * orders["unit_price"].astype(float)).round(2)
+    # Keep only completed
+    before = len(orders)
+    orders = orders[orders["order_status"].str.lower() == "completed"]
+    log.debug("Filtered completed orders: %d → %d", before, len(orders))
 
-    # Filter statuses
-    if not keep_cancelled:
-        before = len(orders)
-        orders = orders[orders["order_status"].str.lower() == "completed"]
-        logger.debug("Filtered orders: %d -> %d (keep_completed only)", before, len(orders))
+    # Join product details
+    prod_cols = ["product_id", "product_name", "category"]
+    orders = orders.merge(products[prod_cols], on="product_id", how="left")
 
-    # Merge product info
-    prod_sel = products[["product_id", "product_name", "category", "price"]].drop_duplicates(subset=["product_id"])
-    orders = orders.merge(prod_sel, on="product_id", how="left", validate="m:1")
-    missing_products = int(orders["product_name"].isna().sum())
-    if missing_products:
-        logger.warning("There are %d orders with missing product metadata", missing_products)
+    # Join current stock
+    orders = orders.merge(inventory[["product_id", "stock_on_hand"]], on="product_id", how="left")
 
-    # Merge inventory for stock_on_hand (prefer inventory as-is)
-    if inventory is not None:
-        inv_sel = inventory[["product_id", "stock_on_hand"]].drop_duplicates(subset=["product_id"])
-        orders = orders.merge(inv_sel, on="product_id", how="left", validate="m:1")
-
-    # reorder columns for convenience
-    cols = [
-        "order_id", "order_date", "user_id", "order_status",
-        "product_id", "product_name", "category",
-        "qty", "unit_price", "order_total"
-    ]
-    if "stock_on_hand" in orders.columns:
-        cols.append("stock_on_hand")
-    # preserve any other columns (like _source_file) after these
-    cols = [c for c in cols if c in orders.columns] + [c for c in orders.columns if c not in cols]
-    orders = orders[cols]
     return orders
 
-def load_and_process(
+# --- Main ETL ---
+def run_etl(
     input_dir: Path,
     output_dir: Path,
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
     output_format: str = "parquet",
-    sqlite_db_name: str = "quickshop_etl.db",
+    sqlite_db: str = "quickshop_etl.db",
     orders_pattern: str = "orders*.csv",
 ) -> Path:
-    """
-    Main orchestrator: read CSVs, validate, transform, write output.
-    Supports multiple orders files named like orders_YYYYMMDD.csv as well as a single orders.csv.
-    If start_date / end_date are provided, orders will be filtered by the order_date column.
+    """Load, validate, transform, write."""
+    log.info("Starting ETL run")
 
-    Returns path to written file (parquet) or DB path for sqlite.
-    """
+    # --- Load raw ---
     try:
-        input_dir = Path(input_dir)
-        output_dir = Path(output_dir)
+        products = read_csv(input_dir / "products.csv")
+        inventory = read_csv(input_dir / "inventory.csv")
+    except FileNotFoundError as e:
+        raise ETLError(f"Missing static file: {e}")
 
-        products_path = input_dir / "products.csv"
-        inventory_path = input_dir / "inventory.csv"
+    order_files = _find_order_files(input_dir, orders_pattern, start_date, end_date)
+    if not order_files:
+        raise ETLError("No order files found")
 
-        if not products_path.exists():
-            raise ETLError(f"Products file not found at {products_path}")
-        if not inventory_path.exists():
-            raise ETLError(f"Inventory file not found at {inventory_path}")
+    # --- Combine orders ---
+    order_frames = []
+    for f in order_files:
+        log.debug("Reading orders: %s", f.name)
+        df = read_csv(f)
+        df["_source"] = f.name
+        order_frames.append(df)
+    orders_raw = pd.concat(order_frames, ignore_index=True)
 
-        products = read_csv(products_path)
-        inventory = read_csv(inventory_path)
+    # --- Validate ---
+    products = validate_products(products)
+    inventory = validate_inventory(inventory)
+    orders_raw = validate_orders(orders_raw)
 
-        # discover order files
-        order_files = _discover_order_files(input_dir, orders_pattern)
-        if not order_files:
-            raise ETLError(f"No orders files found in {input_dir} matching pattern {orders_pattern}")
+    # --- Date filter (if not already filtered by filename) ---
+    if start_date:
+        orders_raw = orders_raw[pd.to_datetime(orders_raw["order_date"]) >= start_date]
+    if end_date:
+        orders_raw = orders_raw[pd.to_datetime(orders_raw["order_date"]) <= end_date]
 
-        orders_raw = _read_and_concat_orders(order_files)
+    # --- Transform ---
+    enriched = enrich_orders(orders_raw, products, inventory)
 
-        # Validate / coerce schemas
-        products = validate_products(products)
-        inventory = validate_inventory(inventory)
-        orders = validate_orders(orders_raw)
+    # --- Write output ---
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-        # filter by date range if provided
-        if start_date is not None:
-            orders = orders[orders["order_date"] >= pd.to_datetime(start_date).normalize()]
-        if end_date is not None:
-            orders = orders[orders["order_date"] <= pd.to_datetime(end_date).normalize()]
-
-        transformed = transform_orders(orders, products, inventory)
-
-        # ensure output directory exists
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        if output_format == "parquet":
-            # Name deterministic when date filters provided, otherwise use timestamp
-            if start_date is not None and end_date is not None and start_date == end_date:
-                filename = f"orders_{pd.Timestamp(start_date).strftime('%Y-%m-%d')}.parquet"
-            elif start_date is not None and end_date is not None:
-                filename = f"orders_{pd.Timestamp(start_date).strftime('%Y%m%d')}_{pd.Timestamp(end_date).strftime('%Y%m%d')}.parquet"
-            else:
-                filename = f"orders_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.parquet"
-
-            out_path = output_dir / filename
-            write_parquet(transformed, out_path)
-            logger.info("Wrote parquet to %s", out_path)
-            return out_path
-        elif output_format == "sqlite":
-            db_path = output_dir / sqlite_db_name
-            write_sqlite(transformed, db_path, table_name="orders")
-            logger.info("Wrote sqlite DB to %s", db_path)
-            return db_path
+    if output_format == "parquet":
+        if start_date and end_date and start_date.date() == end_date.date():
+            fname = f"orders_{start_date.strftime('%Y-%m-%d')}.parquet"
+        elif start_date and end_date:
+            fname = f"orders_{start_date.strftime('%Y%m%d')}_to_{end_date.strftime('%Y%m%d')}.parquet"
         else:
-            raise ETLError(f"Unknown output format: {output_format}")
+            fname = f"orders_all_{pd.Timestamp.now():%Y%m%d_%H%M%S}.parquet"
+        out_path = output_dir / fname
+        write_parquet(enriched, out_path)
+        log.info("Wrote Parquet: %s", out_path)
+        return out_path
 
-    except Exception as e:
-        logger.exception("ETL failed: %s", e)
-        raise
+    elif output_format == "sqlite":
+        db_path = output_dir / sqlite_db
+        write_sqlite(products, db_path, "products", replace=True)
+        write_sqlite(inventory, db_path, "inventory", replace=True)
+        write_sqlite(enriched, db_path, "orders", replace=False)
+        log.info("Wrote SQLite DB: %s", db_path)
+        return db_path
+
+    else:
+        raise ETLError(f"Unknown format: {output_format}")

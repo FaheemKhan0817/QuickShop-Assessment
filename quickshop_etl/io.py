@@ -1,29 +1,23 @@
-from pathlib import Path
-import sqlite3
 import logging
-from typing import Optional
+from pathlib import Path
 import pandas as pd
+import sqlite3
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
-def read_csv(path: Path, **read_kwargs) -> pd.DataFrame:
-    """
-    Simple CSV reader wrapper with logging. Will raise if file not found.
-    """
-    logger.debug("Reading CSV from %s", path)
-    return pd.read_csv(path, **read_kwargs)
+def read_csv(path: Path, **kwargs) -> pd.DataFrame:
+    """Just a thin wrapper so we can log and reuse."""
+    log.debug("Reading CSV: %s", path)
+    return pd.read_csv(path, **kwargs)
 
-def write_parquet(df: pd.DataFrame, path: Path, engine: Optional[str] = "pyarrow") -> None:
+def write_parquet(df: pd.DataFrame, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    logger.debug("Writing Parquet to %s", path)
-    # Use to_parquet - requires pyarrow or fastparquet installed
-    df.to_parquet(path, engine=engine, index=False)
+    log.debug("Writing Parquet: %s", path)
+    df.to_parquet(path, index=False)
 
-def write_sqlite(df: pd.DataFrame, db_path: Path, table_name: str, if_exists: str = "replace") -> None:
+def write_sqlite(df: pd.DataFrame, db_path: Path, table: str, replace: bool = False) -> None:
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(db_path))
-    logger.debug("Writing DataFrame to SQLite DB %s table %s", db_path, table_name)
-    try:
-        df.to_sql(table_name, conn, if_exists=if_exists, index=False)
-    finally:
-        conn.close()
+    mode = "replace" if replace else "append"
+    log.debug("Writing to SQLite: %s → %s (%s)", db_path, table, mode)
+    with sqlite3.connect(db_path) as conn:
+        df.to_sql(table, conn, if_exists=mode, index=False)
