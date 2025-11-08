@@ -1,3 +1,5 @@
+-- Tested on MySQL 8.0+
+-- Data loaded using MySQL Workbench CSV Import Wizard
 -- inventory_alerts.sql
 -- Identify products with stock below a threshold (e.g., 100 units)
 

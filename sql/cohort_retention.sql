@@ -1,5 +1,9 @@
+-- Tested on MySQL 8.0+
+-- Data loaded into MySQL via CSV import (MySQL Workbench CSV Import Wizard).
 -- cohort_retention.sql
--- Calculate basic cohort retention: percentage of users returning in subsequent months
+-- This query calculates cohort retention by user first-order month.
+-- Note: For meaningful multi-month retention curves, run against dataset covering multiple months.
+
 
 WITH first_orders AS (
     -- Identify the first month each user placed an order

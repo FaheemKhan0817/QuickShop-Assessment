@@ -1,3 +1,5 @@
+-- Tested on MySQL 8.0+
+-- Data loaded using MySQL Workbench CSV Import Wizard
 -- daily_revenue.sql
 -- Calculate daily revenue and identify the top revenue category per day
 -- Use window function RANK() to rank categories per day by revenue
