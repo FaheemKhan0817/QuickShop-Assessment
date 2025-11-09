@@ -4,4 +4,3 @@ pyarrow
 SQLAlchemy
 pytest
 flake8
--e .
