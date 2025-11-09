@@ -35,15 +35,3 @@ SELECT
 FROM ranked_categories dcr
 WHERE dcr.rnk = 1   -- use the alias here
 ORDER BY dcr.order_day;
-
-
-"""
-# Results:
-order_day	top_category	top_category_revenue	total_daily_revenue
-10/23/2025	Accessories	     1709.84	                      2353.82
-10/24/2025	Electronics	     1459.84	                      2068.9
-10/25/2025	Electronics	     3571	                      5316.67
-10/26/2025	Home	         1117.24	                      3780.27
-
-
-"""

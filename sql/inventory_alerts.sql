@@ -12,16 +12,3 @@ FROM inventory i
 JOIN products p ON i.product_id = p.product_id
 WHERE i.stock_on_hand < 100
 ORDER BY i.stock_on_hand ASC;
-
-
-"""
-# Results:
-
-product_id	product_name	category	stock_on_hand
-1025	Product_1025	Apparel       	56
-1016	Product_1016	Footwear	    77
-1015	Product_1015	Accessories	    94
-1014	Product_1014	Apparel	        99
-
-
-"""

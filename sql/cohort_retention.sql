@@ -49,12 +49,3 @@ SELECT
 FROM cohort_counts c
 JOIN cohort_sizes cs ON c.cohort_month = cs.cohort_month
 ORDER BY c.cohort_month, c.order_month;  -- show in chronological order
-
-
-"""
-# Results:
-
-cohort_month	order_month	user_count	cohort_size	retention_rate
-2025-10	        2025-10	     20	              20	   1
-
-"""
