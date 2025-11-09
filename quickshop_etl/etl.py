@@ -10,16 +10,16 @@ Behavior:
 - Write output to Parquet or SQLite
 """
 
-from pathlib import Path
-from typing import Dict, List, Optional
-from datetime import datetime
-
 import logging
 import re
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional
+
 import pandas as pd
 
+from .exception import ETLError, ValidationError
 from .io import read_csv, write_parquet, write_sqlite
-from .exception import ValidationError, ETLError
 
 logger = logging.getLogger(__name__)
 
@@ -52,19 +52,13 @@ ORDERS_SCHEMA: Dict[str, str] = {
 
 
 # ---- Validation helpers ----
-def _ensure_columns(
-    df: pd.DataFrame, schema: Dict[str, str], name: str
-) -> None:
+def _ensure_columns(df: pd.DataFrame, schema: Dict[str, str], name: str) -> None:
     missing = [c for c in schema.keys() if c not in df.columns]
     if missing:
-        raise ValidationError(
-            f"[{name}] missing columns: {', '.join(missing)}"
-        )
+        raise ValidationError(f"[{name}] missing columns: {', '.join(missing)}")
 
 
-def _cast_series(
-    series: pd.Series, target: str, col_label: str
-) -> pd.Series:
+def _cast_series(series: pd.Series, target: str, col_label: str) -> pd.Series:
     try:
         if target == "int":
             return pd.to_numeric(series, errors="raise").astype("Int64")
@@ -117,9 +111,7 @@ def _discover_order_files(data_dir: Path, pattern: str) -> List[Path]:
     inside data_dir. Uses Path.glob for consistent pathlib behavior.
     """
     files = sorted(data_dir.glob(pattern))
-    logger.debug(
-        "discovered %d order files using pattern %s", len(files), pattern
-    )
+    logger.debug("discovered %d order files using pattern %s", len(files), pattern)
     return files
 
 
@@ -148,9 +140,7 @@ def _filter_files_by_filename_date(
             file_dt = datetime.strptime(m.group(1), "%Y%m%d")
         except ValueError:
             # invalid date token in filename — skip it
-            logger.debug(
-                "skipping file with invalid date token: %s", p.name
-            )
+            logger.debug("skipping file with invalid date token: %s", p.name)
             continue
 
         if start and file_dt < start:
@@ -167,20 +157,16 @@ def _filter_files_by_filename_date(
 def _compute_order_totals(orders: pd.DataFrame) -> pd.DataFrame:
     # ensure numeric before multiplication
     orders = orders.copy()
-    orders["qty"] = pd.to_numeric(
-        orders["qty"], errors="raise"
-    ).astype(float)
-    orders["unit_price"] = pd.to_numeric(
-        orders["unit_price"], errors="raise"
-    ).astype(float)
+    orders["qty"] = pd.to_numeric(orders["qty"], errors="raise").astype(float)
+    orders["unit_price"] = pd.to_numeric(orders["unit_price"], errors="raise").astype(
+        float
+    )
     orders["order_total"] = (orders["qty"] * orders["unit_price"]).round(2)
     return orders
 
 
 def enrich_orders(
-    orders: pd.DataFrame,
-    products: pd.DataFrame,
-    inventory: pd.DataFrame
+    orders: pd.DataFrame, products: pd.DataFrame, inventory: pd.DataFrame
 ) -> pd.DataFrame:
     """
     Calculate order_total, keep only completed orders, and enrich with
@@ -199,9 +185,7 @@ def enrich_orders(
     # left-join product metadata
     prod_cols = ["product_id", "product_name", "category"]
     df = df.merge(
-        products[prod_cols].drop_duplicates(
-            subset=["product_id"]
-        ),
+        products[prod_cols].drop_duplicates(subset=["product_id"]),
         on="product_id",
         how="left",
         validate="m:1",
@@ -251,9 +235,7 @@ def run_etl(
     Orchestrate the ETL run. Returns the path to the created artifact
     (parquet file or sqlite DB).
     """
-    logger.info(
-        "starting ETL run; input=%s output=%s", input_dir, output_dir
-    )
+    logger.info("starting ETL run; input=%s output=%s", input_dir, output_dir)
 
     # Normalize date filters to midnight timestamps if provided
     if start_date is not None:
@@ -265,18 +247,14 @@ def run_etl(
     products_path = Path(input_dir) / "products.csv"
     inventory_path = Path(input_dir) / "inventory.csv"
     if not products_path.exists() or not inventory_path.exists():
-        raise ETLError(
-            f"products.csv or inventory.csv not found in {input_dir}"
-        )
+        raise ETLError(f"products.csv or inventory.csv not found in {input_dir}")
 
     products_raw = read_csv(products_path)
     inventory_raw = read_csv(inventory_path)
 
     # Discover order files and optionally filter by filename date token
     all_order_files = _discover_order_files(Path(input_dir), orders_pattern)
-    files_to_use = _filter_files_by_filename_date(
-        all_order_files, start_date, end_date
-    )
+    files_to_use = _filter_files_by_filename_date(all_order_files, start_date, end_date)
     if not files_to_use:
         raise ETLError("no order files found for the requested range")
 
@@ -288,10 +266,7 @@ def run_etl(
         df["_source"] = p.name
         frames.append(df)
 
-    orders_raw = (
-        pd.concat(frames, ignore_index=True) if frames
-        else pd.DataFrame()
-    )
+    orders_raw = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
     # Validate and coerce schemas
     products = validate_products(products_raw)

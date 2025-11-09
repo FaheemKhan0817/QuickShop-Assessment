@@ -1,11 +1,11 @@
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 # Read requirements from requirements.txt
 try:
     with open("requirements.txt", "r") as f:
         requirements = f.read().splitlines()
 except FileNotFoundError:
-    requirements = []  
+    requirements = []
 
 setup(
     name="quickshop_etl",
@@ -14,5 +14,5 @@ setup(
     author_email="faheemthakur23@gmail.com",
     description="QuickShop ETL and Airflow assessment project",
     packages=find_packages(),
-    install_requires=requirements
+    install_requires=requirements,
 )

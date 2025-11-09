@@ -4,8 +4,9 @@ Command-line entrypoint for QuickShop ETL.
 
 import argparse
 import logging
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+
 from .config import ETLConfig
 from .etl import run_etl
 
@@ -13,39 +14,39 @@ logger = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(
-        description="QuickShop ETL — CSV -> Parquet / SQLite"
+    p = argparse.ArgumentParser(description="QuickShop ETL — CSV -> Parquet / SQLite")
+    p.add_argument(
+        "-i",
+        "--input-dir",
+        type=Path,
+        default=Path("data"),
+        help="Folder containing CSV files",
     )
     p.add_argument(
-        "-i", "--input-dir", type=Path, default=Path("data"),
-        help="Folder containing CSV files"
+        "-o",
+        "--output-dir",
+        type=Path,
+        default=Path("output"),
+        help="Directory to write outputs",
     )
     p.add_argument(
-        "-o", "--output-dir", type=Path, default=Path("output"),
-        help="Directory to write outputs"
+        "-f",
+        "--output-format",
+        choices=["parquet", "sqlite"],
+        default="parquet",
+        help="Output format",
     )
     p.add_argument(
-        "-f", "--output-format", choices=["parquet", "sqlite"],
-        default="parquet", help="Output format"
+        "--sqlite-name",
+        default="quickshop_etl.db",
+        help="SQLite filename (when using sqlite)",
     )
+    p.add_argument("--start-date", help="Start date filter (YYYY-MM-DD)")
+    p.add_argument("--end-date", help="End date filter (YYYY-MM-DD)")
     p.add_argument(
-        "--sqlite-name", default="quickshop_etl.db",
-        help="SQLite filename (when using sqlite)"
+        "--orders-pattern", default="orders*.csv", help="Glob pattern for orders files"
     )
-    p.add_argument(
-        "--start-date", help="Start date filter (YYYY-MM-DD)"
-    )
-    p.add_argument(
-        "--end-date", help="End date filter (YYYY-MM-DD)"
-    )
-    p.add_argument(
-        "--orders-pattern", default="orders*.csv",
-        help="Glob pattern for orders files"
-    )
-    p.add_argument(
-        "-v", "--verbose", action="store_true",
-        help="Enable debug logging"
-    )
+    p.add_argument("-v", "--verbose", action="store_true", help="Enable debug logging")
     return p
 
 
@@ -54,18 +55,12 @@ def main():
 
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
-        format="%(asctime)s %(levelname)s %(message)s"
+        format="%(asctime)s %(levelname)s %(message)s",
     )
 
     # Parse optional dates
-    start = (
-        datetime.strptime(args.start_date, "%Y-%m-%d")
-        if args.start_date else None
-    )
-    end = (
-        datetime.strptime(args.end_date, "%Y-%m-%d")
-        if args.end_date else None
-    )
+    start = datetime.strptime(args.start_date, "%Y-%m-%d") if args.start_date else None
+    end = datetime.strptime(args.end_date, "%Y-%m-%d") if args.end_date else None
 
     # Build a simple config object (convenience)
     config = ETLConfig(
@@ -73,7 +68,7 @@ def main():
         output_dir=args.output_dir,
         output_format=args.output_format,
         sqlite_db_name=args.sqlite_name,
-        orders_pattern=args.orders_pattern
+        orders_pattern=args.orders_pattern,
     )
 
     logger.info("ETL config: %s", config)

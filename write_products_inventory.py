@@ -1,5 +1,6 @@
 from pathlib import Path
-from quickshop_etl.io import write_sqlite, read_csv
+
+from quickshop_etl.io import read_csv, write_sqlite
 
 # Paths
 input_dir = Path("data")

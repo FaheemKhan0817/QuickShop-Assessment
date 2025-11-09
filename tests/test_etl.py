@@ -1,16 +1,17 @@
-import pytest
 from pathlib import Path
-import pandas as pd
+
 import numpy as np
+import pandas as pd
+import pytest
+
 from quickshop_etl.etl import (
-    validate_products,
-    validate_inventory,
-    validate_orders,
     enrich_orders,
     run_etl,
+    validate_inventory,
+    validate_orders,
+    validate_products,
 )
-from quickshop_etl.exception import ValidationError, ETLError
-
+from quickshop_etl.exception import ETLError, ValidationError
 
 # --- Sample DataFrames for testing ---
 PRODUCTS_SAMPLE = pd.DataFrame(

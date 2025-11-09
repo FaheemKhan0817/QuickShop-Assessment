@@ -8,6 +8,7 @@ class ETLConfig:
     """
     Simple config holder — keeps all the paths and options in one place.
     """
+
     input_dir: Path
     output_dir: Path
     output_format: Literal["parquet", "sqlite"] = "parquet"

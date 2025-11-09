@@ -1,8 +1,8 @@
 import logging
-from pathlib import Path
-import pandas as pd
 import sqlite3
+from pathlib import Path
 
+import pandas as pd
 
 log = logging.getLogger(__name__)
 
@@ -19,7 +19,9 @@ def write_parquet(df: pd.DataFrame, path: Path) -> None:
     df.to_parquet(path, index=False)
 
 
-def write_sqlite(df: pd.DataFrame, db_path: Path, table: str, if_exists: str = "append") -> None:
+def write_sqlite(
+    df: pd.DataFrame, db_path: Path, table: str, if_exists: str = "append"
+) -> None:
     """
     Write a DataFrame to a SQLite DB.
 
