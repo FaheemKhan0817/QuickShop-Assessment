@@ -1,0 +1,10 @@
+{
+  "date": "2025-10-23",
+  "total_orders": 6,
+  "total_revenue": 2353.82,
+  "top_category": "Accessories",
+  "category_breakdown": {
+    "Accessories": 1709.84,
+    "Apparel": 643.98
+  }
+}

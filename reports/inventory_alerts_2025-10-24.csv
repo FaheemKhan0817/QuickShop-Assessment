@@ -1,0 +1,5 @@
+product_id,product_name,category,warehouse_id,stock_on_hand,stock_status
+1025,Product_1025,Apparel,W1,56,Warning
+1016,Product_1016,Footwear,W2,77,Warning
+1015,Product_1015,Accessories,W3,94,Warning
+1014,Product_1014,Apparel,W3,99,Warning

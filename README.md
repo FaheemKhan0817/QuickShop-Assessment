@@ -19,27 +19,30 @@ All code is fully tested, logged, and ready to run locally o
 ## 🧩 Project Layout
 
 ```
-quickshop-assessment/
-├── quickshop_etl/          # Task A
-│   ├── cli.py
-│   ├── etl.py
-│   ├── io.py
-│   └── ...
-├── dags/                   # Task C
-│   └── quickshop_daily_pipeline.py
-├── sql/                    # Task B
-│   ├── daily_revenue.sql
-│   ├── product_performance.sql
-│   ├── inventory_alerts.sql
-│   └── cohort_retention.sql
-├── data/                   # All CSV files
-│   ├── products.csv
-│   ├── inventory.csv
-│   └── orders_202510*.csv
+Here is the project structure:
+
+```
+QUICKSHOP-ASSESSMENT/
+├── .github/
+├── dags/
+├── data/
+├── env/
+├── output/
+├── quickshop_etl/
+├──reports/
+├── sql/
 ├── tests/
-├── run_etl.py
+├── .flake8
+├── .gitignore
+├── Dockerfile
+├── LICENSE
+├── README.md
 ├── requirements.txt
-└── README.md
+├── run_etl.py
+├── setup.py
+├── test.ipynb
+└── write_products_inventory.py
+```
 ```
 
 ---
@@ -70,7 +73,7 @@ python run_etl.py \
   --output-format parquet
 ```
 
-➡ Output: `output/orders_2025-10-23.parquet`
+➡ Output: `output/orders_20251023_to_20251026.parquet`
 
 ---
 
@@ -102,8 +105,8 @@ USE quickshop;
 - Click **Start Import**
 
 **3️⃣ Run queries**
-```bash
-mysql -u root -p quickshop < sql/daily_revenue.sql
+```
+- MySQL Workbench
 ```
 
 ---
@@ -113,7 +116,8 @@ mysql -u root -p quickshop < sql/daily_revenue.sql
 ### 1️⃣ Install Airflow Standalone
 ```bash
 sudo apt update && sudo apt install -y python3-pip
-pip install apache-airflow==2.10.2
+pip install apache-airflow
+pip install requirements.txt
 ```
 
 ### 2️⃣ Initialize and Start
@@ -150,14 +154,14 @@ flake8 . --exclude env,venv,.venv
 ### Build & Run
 ```bash
 docker build -t quickshop-etl:latest .
-docker run --rm -v $(pwd)/data:/app/data -v $(pwd)/output:/app/output quickshop-etl:latest
+docker run --rm -v "%cd%\data:/app/data" -v "%cd%\output:/app/output" quickshop_etl:latest --input-dir data --output-dir output --start-date 2025-10-23 --end-date 2025-10-26
 ```
 
 ### Push to Docker Hub
 ```bash
-docker login -u <your-username>
-docker tag quickshop-etl <your-username>/quickshop-etl:latest
-docker push <your-username>/quickshop-etl:latest
+docker login -u faheemkhan08
+docker tag quickshop-etl faheemkhan08/quickshop-etl:latest
+docker push faheemkhan08/quickshop-etl:latest
 ```
 
 ### CI/CD (GitHub Actions)

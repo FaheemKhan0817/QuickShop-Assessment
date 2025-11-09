@@ -1,0 +1,13 @@
+{
+  "date": "2025-10-26",
+  "total_orders": 8,
+  "total_revenue": 3780.27,
+  "top_category": "Home",
+  "category_breakdown": {
+    "Accessories": 735.0,
+    "Apparel": 496.95,
+    "Electronics": 686.32,
+    "Footwear": 744.76,
+    "Home": 1117.24
+  }
+}
