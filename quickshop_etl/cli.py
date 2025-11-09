@@ -1,7 +1,6 @@
 # quickshop_etl/cli.py
 """
 Command-line entrypoint for QuickShop ETL.
-Uses the human-styled run_etl(...) function from quickshop_etl.etl.
 """
 
 import argparse

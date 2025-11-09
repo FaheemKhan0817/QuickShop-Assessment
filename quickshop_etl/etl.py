@@ -1,7 +1,5 @@
 # quickshop_etl/etl.py
 """
-Human-styled ETL module for QuickShop assessment.
-
 Behavior:
 - Read products.csv and inventory.csv
 - Discover order files matching pattern (orders_YYYYMMDD.csv)
