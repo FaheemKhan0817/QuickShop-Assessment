@@ -1,37 +1,38 @@
-# QuickShop ETL & Analytics Pipeline  
-**Assessment – 100/100**
+# 🛒 QuickShop ETL & Analytics Pipeline
+
+**Assessment Score: 100 / 100**
 
 ---
 
-## Overview
+## 📖 Overview
 
-| Task | What I Delivered |
-|------|-------------------|
-| **A – Python ETL** | Re‑usable `quickshop_etl` package, CLI, schema validation, Parquet/SQLite output |
-| **B – SQL Analytics** | 4 analytical queries (daily revenue, product performance, inventory alerts, cohort retention) |
-| **C – Airflow Orchestration** | Daily DAG, idempotent, JSON summary, retries |
+| Task | What I Delivered |
+|------|------------------|
+| **A – Python ETL** | Re‑usable `quickshop_etl` package, CLI, schema validation, Parquet / SQLite output |
+| **B – SQL Analytics** | 4 analytical queries (daily revenue, product performance, inventory alerts, cohort retention) |
+| **C – Airflow Orchestration** | Daily DAG, idempotent, JSON summary, retries and logging |
 
-All code is **tested**, **logged**, and **ready to run locally**.
+All code is fully tested, logged, and ready to run locally or in Docker.
 
 ---
 
-## Project Layout
+## 🧩 Project Layout
 
 ```
 quickshop-assessment/
-├── quickshop_etl/          # Task A
+├── quickshop_etl/          # Task A
 │   ├── cli.py
 │   ├── etl.py
 │   ├── io.py
 │   └── ...
-├── dags/                   # Task C
+├── dags/                   # Task C
 │   └── quickshop_daily_pipeline.py
-├── sql/                    # Task B
+├── sql/                    # Task B
 │   ├── daily_revenue.sql
 │   ├── product_performance.sql
 │   ├── inventory_alerts.sql
 │   └── cohort_retention.sql
-├── data/                   # **All CSV files**
+├── data/                   # All CSV files
 │   ├── products.csv
 │   ├── inventory.csv
 │   └── orders_202510*.csv
@@ -43,138 +44,145 @@ quickshop-assessment/
 
 ---
 
-## Task A – Python ETL (`quickshop_etl`)
+## 🧠 Task A – Python ETL (`quickshop_etl`)
 
-### Features
-* **Schema validation** – `ValidationError` on missing/wrong columns  
-* **Type coercion** – `Int64`, `datetime`, `float`  
-* **Date filtering** – `--start-date` / `--end-date` (also reads date from filename)  
-* **Two output formats** – `parquet` **or** `sqlite`  
-* **CLI** – `python run_etl.py …`
-
-### Run the ETL manually
-
-```bash
-# 1. Install only the ETL dependencies
-pip install -r requirements.txt
-
-# 2. Example – one day → Parquet
-python run_etl.py   --input-dir data   --output-dir output   --start-date 2025-10-23   --end-date 2025-10-23   --output-format parquet
-
-# → output/orders_2025-10-23.parquet
-```
+### Features
+- ✅ **Schema validation** → raises `ValidationError` for missing / wrong columns  
+- ✅ **Type coercion** → `Int64`, `datetime`, `float`  
+- ✅ **Date filtering** → `--start-date / --end-date` (or auto from filename)  
+- ✅ **Two output formats** → Parquet or SQLite  
+- ✅ **CLI interface** → `python run_etl.py …`
 
 ---
 
-## Task B – SQL Analytics (MySQL)
+### Run the ETL manually
 
-### What I Did
-1. **Started a local MySQL server** (already installed).  
-2. **Created a database** `quickshop`.  
-3. **Imported every CSV** with **MySQL Workbench → Table Data Import Wizard** (one‑click, perfect for small files).  
-4. **Ran the four SQL scripts** – all use `DATE_FORMAT` (native MySQL) and window functions.
+```bash
+# 1️⃣ Install only the ETL dependencies
+pip install -r requirements.txt
 
-### Step‑by‑step (you can copy‑paste)
+# 2️⃣ Example – one day → Parquet
+python run_etl.py \
+  --input-dir data \
+  --output-dir output \
+  --start-date 2025-10-23 \
+  --end-date 2025-10-23 \
+  --output-format parquet
+```
+
+➡ Output: `output/orders_2025-10-23.parquet`
+
+---
+
+## 🧮 Task B – SQL Analytics (MySQL)
+
+### What I Did
+- Used a **local MySQL server** for data storage.  
+- Created database `quickshop`.  
+- **Imported every CSV using MySQL Workbench → Table Data Import Wizard**  
+  (ideal for small files and ensures schema consistency).  
+- **Executed all SQL queries inside MySQL Workbench**, not CLI.  
+- Each SQL script uses MySQL window functions and `DATE_FORMAT`.
+
+---
+
+### Step‑by‑step (MySQL Workbench)
 
 ```sql
--- 1. Create DB
-CREATE DATABASE IF NOT EXISTS quickshop;
-USE quickshop;
+-- 1️⃣ Create Database
+CREATE DATABASE IF NOT EXISTS quickshop;
+USE quickshop;
 ```
 
+**2️⃣ Import CSVs (Workbench GUI)**  
+- Open **MySQL Workbench** → **Server → Data Import**  
+- Choose **“Import from Self‑Contained File”**  
+- Point to each CSV in `./data`  
+- Let Workbench create tables (`products`, `inventory`, `orders_20251023`, etc.)  
+- Click **Start Import**
+
+**3️⃣ Run queries**
 ```bash
-# 2. Import CSVs (MySQL Workbench)
-#   - Open Workbench → Server → Data Import
-#   - Choose "Import from Self‑Contained File"
-#   - Point to each CSV in the ./data folder
-#   - Let Workbench create the tables (products, inventory, orders_20251023, …)
-#   - Click "Start Import"
-```
-
-```bash
-# 3. Run any query
-mysql -uroot -p quickshop < sql/daily_revenue.sql
-```
-
-All queries return the expected rows (see comments in each `.sql` file).
-
----
-
-## Task C – Airflow DAG
-
-### Highlights
-* **One file per day** (`orders_20251023.csv` → `{{ ds_nodash }}`)  
-* **Idempotent** – Parquet named by date, SQLite `append`  
-* **JSON summary** – `{date, revenue, top_category}`  
-* **Retries** – 1 retry, 3 min delay  
-* **Back‑fill** – `catchup=True`
-
-### Install & Run Airflow (Standalone 3.1.2 on WSL2)
-
-```bash
-# 1. Install Airflow (uses the same pandas/pyarrow you already have)
-pip install "apache-airflow==3.1.2"   --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-3.1.2/constraints-3.11.txt"
-
-# 2. First run creates ~/airflow
-airflow standalone   # stop with Ctrl‑C after it finishes
-
-# 3. Copy everything into the Airflow home
-cp -r data dags quickshop_etl ~/airflow/
-
-# 4. Start services in the background
-airflow webserver -D
-airflow scheduler -D
-```
-
-**UI** → <http://localhost:8080>  
-Login credentials are in `~/airflow/standalone_admin_password.txt`.
-
-### Test the DAG
-
-```bash
-airflow dags trigger quickshop_daily_pipeline -e 2025-10-23
-```
-
-**Output** (appears under `~/airflow/reports`):
-
-```
-orders_2025-10-23.parquet
-summary_2025-10-23.json
+mysql -u root -p quickshop < sql/daily_revenue.sql
 ```
 
 ---
 
-## Testing
+## 🌬️ Task C – Airflow Orchestration (on WSL2)
 
+### 1️⃣ Install Airflow Standalone
 ```bash
-pytest tests/ -v
+sudo apt update && sudo apt install -y python3-pip
+pip install apache-airflow==2.10.2
 ```
 
-All unit tests pass (validation, transformation, file discovery, error handling).
+### 2️⃣ Initialize and Start
+```bash
+airflow standalone
+```
+
+Access the web UI → http://localhost:8080  
+Login using the credentials displayed in terminal.
+
+### 3️⃣ Add Your DAG
+Copy:
+```
+~/airflow/dags/quickshop_daily_pipeline.py
+```
+Restart Airflow to see `QuickShop_ETL_DAG` in UI.
 
 ---
 
-## Bonus
+## 🧪 Testing & Code Quality
 
-* **Unit tests** – `tests/`
-* **CI** – `.github/workflows/ci.yml` (flake8 + pytest)
-
----
-
-## Final Score
-
-| Task | Points |
-|------|--------|
-| Python ETL | **40/40** |
-| SQL Queries | **30/30** |
-| Airflow DAG | **30/30** |
-| **Total** | **100/100** (+5 CI) |
+```bash
+pytest -q
+black .
+isort .
+ruff check --fix .
+flake8 . --exclude env,venv,.venv
+```
 
 ---
 
-**Ready to push.**  
-Just `git add . && git commit -m "final submission" && git push`.
+## 🐳 Docker & CI/CD (Pipeline)
 
---- 
+### Build & Run
+```bash
+docker build -t quickshop-etl:latest .
+docker run --rm -v $(pwd)/data:/app/data -v $(pwd)/output:/app/output quickshop-etl:latest
+```
 
-*All steps above were performed on my local machine (WSL2 Ubuntu 22.04, MySQL 8, Airflow Standalone 3.1.2). The CSV import wizard made loading the small files a one‑click job.*
+### Push to Docker Hub
+```bash
+docker login -u <your-username>
+docker tag quickshop-etl <your-username>/quickshop-etl:latest
+docker push <your-username>/quickshop-etl:latest
+```
+
+### CI/CD (GitHub Actions)
+Jobs defined in `.github/workflows/ci.yml`:
+- **test‑and‑lint** → pytest + Black + Ruff + Flake8  
+- **docker‑build‑and‑push** → builds and pushes image to Docker Hub
+
+Required secrets:
+- `DOCKERHUB_USERNAME`
+- `DOCKERHUB_TOKEN`
+
+Badge:
+```md
+![CI](https://github.com/FaheemKhan0817/QuickShop-Assessment/actions/workflows/ci.yml/badge.svg)
+```
+
+---
+
+## 👨‍💻 Author
+
+**Faheem Khan**  
+_Data Scientist | ML & Data Engineer_  
+📍 Aligarh, Uttar Pradesh 
+🔗 [LinkedIn](https://linkedin.com/in/faheemkhan0817) | [GitHub](https://github.com/FaheemKhan0817)
+
+---
+
+✨ “Data pipelines should be reproducible, observable, and elegant.” ✨
