@@ -1,5 +1,5 @@
 class ValidationError(Exception):
-    """Something's wrong with the input data — bad column, wrong type, etc."""
+    """Something's wrong with the input data — bad column, wrong type."""
     pass
 
 

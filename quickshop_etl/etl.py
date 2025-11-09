@@ -18,7 +18,6 @@ import logging
 import re
 import pandas as pd
 
-from .config import ETLConfig
 from .io import read_csv, write_parquet, write_sqlite
 from .exception import ValidationError, ETLError
 
@@ -53,20 +52,26 @@ ORDERS_SCHEMA: Dict[str, str] = {
 
 
 # ---- Validation helpers ----
-def _ensure_columns(df: pd.DataFrame, schema: Dict[str, str], name: str) -> None:
+def _ensure_columns(
+    df: pd.DataFrame, schema: Dict[str, str], name: str
+) -> None:
     missing = [c for c in schema.keys() if c not in df.columns]
     if missing:
-        raise ValidationError(f"[{name}] missing columns: {', '.join(missing)}")
+        raise ValidationError(
+            f"[{name}] missing columns: {', '.join(missing)}"
+        )
 
 
-def _cast_series(series: pd.Series, target: str, col_label: str) -> pd.Series:
+def _cast_series(
+    series: pd.Series, target: str, col_label: str
+) -> pd.Series:
     try:
         if target == "int":
             return pd.to_numeric(series, errors="raise").astype("Int64")
         if target == "float":
             return pd.to_numeric(series, errors="raise").astype(float)
         if target == "date":
-            # keep pandas datetime64[ns] for easier filtering/aggregation later
+            # keep pandas datetime64[ns] for easier filtering later
             return pd.to_datetime(series, errors="raise")
         if target == "str":
             return series.astype(str)
@@ -77,10 +82,13 @@ def _cast_series(series: pd.Series, target: str, col_label: str) -> pd.Series:
         ) from exc
 
 
-def validate_dataframe(df: pd.DataFrame, schema: Dict[str, str], name: str) -> pd.DataFrame:
+def validate_dataframe(
+    df: pd.DataFrame, schema: Dict[str, str], name: str
+) -> pd.DataFrame:
     """
     Validate presence of required columns and coerce types.
-    Returns a new DataFrame with coerced dtypes (or raises ValidationError).
+    Returns a new DataFrame with coerced dtypes (or raises
+    ValidationError).
     """
     _ensure_columns(df, schema, name)
     out = df.copy()
@@ -140,7 +148,9 @@ def _filter_files_by_filename_date(
             file_dt = datetime.strptime(m.group(1), "%Y%m%d")
         except ValueError:
             # invalid date token in filename — skip it
-            logger.debug("skipping file with invalid date token: %s", p.name)
+            logger.debug(
+                "skipping file with invalid date token: %s", p.name
+            )
             continue
 
         if start and file_dt < start:
@@ -157,9 +167,9 @@ def _filter_files_by_filename_date(
 def _compute_order_totals(orders: pd.DataFrame) -> pd.DataFrame:
     # ensure numeric before multiplication
     orders = orders.copy()
-    orders["qty"] = pd.to_numeric(orders["qty"], errors="raise").astype(
-        float
-    )
+    orders["qty"] = pd.to_numeric(
+        orders["qty"], errors="raise"
+    ).astype(float)
     orders["unit_price"] = pd.to_numeric(
         orders["unit_price"], errors="raise"
     ).astype(float)
@@ -167,7 +177,11 @@ def _compute_order_totals(orders: pd.DataFrame) -> pd.DataFrame:
     return orders
 
 
-def enrich_orders(orders: pd.DataFrame, products: pd.DataFrame, inventory: pd.DataFrame) -> pd.DataFrame:
+def enrich_orders(
+    orders: pd.DataFrame,
+    products: pd.DataFrame,
+    inventory: pd.DataFrame
+) -> pd.DataFrame:
     """
     Calculate order_total, keep only completed orders, and enrich with
     product and inventory data. Returns a new DataFrame.
@@ -216,7 +230,7 @@ def enrich_orders(orders: pd.DataFrame, products: pd.DataFrame, inventory: pd.Da
         "order_total",
         "stock_on_hand",
     ]
-    ordered = [c for c in ordered if c in df.columns]  # guard against schema
+    ordered = [c for c in ordered if c in df.columns]
     others = [c for c in df.columns if c not in ordered]
     df = df[ordered + others]
 
@@ -237,7 +251,9 @@ def run_etl(
     Orchestrate the ETL run. Returns the path to the created artifact
     (parquet file or sqlite DB).
     """
-    logger.info("starting ETL run; input=%s output=%s", input_dir, output_dir)
+    logger.info(
+        "starting ETL run; input=%s output=%s", input_dir, output_dir
+    )
 
     # Normalize date filters to midnight timestamps if provided
     if start_date is not None:
@@ -272,7 +288,10 @@ def run_etl(
         df["_source"] = p.name
         frames.append(df)
 
-    orders_raw = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+    orders_raw = (
+        pd.concat(frames, ignore_index=True) if frames
+        else pd.DataFrame()
+    )
 
     # Validate and coerce schemas
     products = validate_products(products_raw)
