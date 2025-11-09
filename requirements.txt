@@ -1,6 +1,6 @@
-pandas==2.2.2
-numpy==1.26.4
-pyarrow==16.1.0
-SQLAlchemy==2.0.30
-pytest==8.3.2
-flake8==6.1.0
+pandas
+numpy
+pyarrow
+SQLAlchemy
+pytest
+flake8
