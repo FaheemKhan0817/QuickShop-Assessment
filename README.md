@@ -43,7 +43,6 @@ QUICKSHOP-ASSESSMENT/
 ├── test.ipynb
 └── write_products_inventory.py
 ```
-```
 
 ---
 
