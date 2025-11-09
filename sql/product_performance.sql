@@ -1,20 +1,23 @@
 -- Tested on MySQL 8.0+
 -- Data loaded using MySQL Workbench CSV Import Wizard
--- product_performance.sql
--- Calculate product-level metrics: total units sold, total revenue, and return rate (if available)
--- Using LEFT JOIN to include products with zero sales
+
+-- This query shows which products are performing best.
+-- It calculates total units sold, total revenue, and return rate for each product.
 
 SELECT
-    p.product_id,
-    p.product_name,
-    p.category,
-    COALESCE(SUM(o.qty), 0) AS total_units_sold,                       -- Total quantity sold per product
-    COALESCE(SUM(o.qty * o.unit_price), 0) AS total_revenue,           -- Total revenue per product
-    0.00 AS return_rate                                                -- NOTE: return_rate currently a placeholder (0.00). Replace with real returns data if available.
+    p.product_id,                       -- product id
+    p.product_name,                     -- name of the product
+    p.category,                         -- product category
+    SUM(o.qty) AS total_units_sold,     -- total number of items sold
+    SUM(o.qty * o.unit_price) AS total_revenue,   -- total money made from that product
+    ROUND(
+        SUM(CASE WHEN o.order_status='cancelled' THEN 1 ELSE 0 END)/COUNT(*),
+        2
+    ) AS return_rate                    -- how many orders got cancelled (return rate)
+FROM orders o
+JOIN products p ON o.product_id = p.product_id     -- matching orders with product info
+GROUP BY
+    p.product_id, p.product_name, p.category       -- group data by each product
+ORDER BY
+    total_revenue DESC;                -- show the highest-earning products first
 
-FROM products p
-LEFT JOIN orders o
-       ON p.product_id = o.product_id
-      AND o.order_status = 'completed'
-GROUP BY p.product_id, p.product_name, p.category
-ORDER BY total_revenue DESC;

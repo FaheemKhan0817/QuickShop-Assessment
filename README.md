@@ -55,7 +55,8 @@ QUICKSHOP-ASSESSMENT/
 │   ├── daily_revenue.sql
 │   ├── product_performance.sql
 │   ├── inventory_alerts.sql
-│   └── cohort_retention.sql
+│   ├── cohort_retention.sql
+│   └── output.md
 │
 ├── tests/                            # Unit tests
 │   └── test_etl.py
@@ -80,11 +81,16 @@ QUICKSHOP-ASSESSMENT/
 - Python 3.11+
 - MySQL Server (for SQL analytics)
 - Docker (optional, for containerized deployment)
-- Apache Airflow (optional, for orchestration)
+- Apache Airflow
 
 ---
 
 ## 🔧 Environment Setup
+
+# If Python 3.11 not installed:
+# Windows:  https://www.python.org/downloads/
+# Ubuntu:   sudo apt install python3.11 python3.11-venv
+
 
 ### Step 1: Create Python Virtual Environment
 
@@ -253,6 +259,7 @@ python run_etl.py \
 ---
 
 ## 📊 Task B – SQL Analytics (MySQL)
+-- All queries were executed in MySQL Workbench, not CLI, for easier visualization.
 
 ### Setup MySQL Database
 
@@ -332,6 +339,9 @@ sudo apt update && sudo apt install -y python3-pip
 # Install Airflow (make sure env is activated)
 pip install apache-airflow
 
+# Verify Airflow installation
+airflow version
+
 # Install project requirements
 pip install -r requirements.txt
 ```
@@ -341,28 +351,28 @@ pip install -r requirements.txt
 #### **2️⃣ Initialize Airflow**
 
 ```bash
-# Initialize database
-airflow db init
-
-# Create admin user
-airflow users create \
-    --username admin \
-    --firstname Admin \
-    --lastname User \
-    --role Admin \
-    --email admin@quickshop.com \
-    --password admin
+# Initialize and start Airflow in standalone mode
+airflow standalone
 ```
+
+Then access at **http://localhost:8080** and log in with printed credentials.
 
 ---
 
-#### **3️⃣ Start Airflow**
+#### **3️⃣ Deploy DAG**
+
+Copy your DAG file to:
+```bash
+~/airflow/dags/quickshop_daily_pipeline.py
+```
+
+Restart Airflow and trigger DAG in UI.
+
+---
+
+#### **4️⃣ Alternative: Separate Components (Production)**
 
 ```bash
-# Option 1: Standalone (single command)
-airflow standalone
-
-# Option 2: Separate components (production)
 # Terminal 1: Start webserver
 airflow webserver --port 8080
 
@@ -374,7 +384,7 @@ airflow scheduler
 
 ---
 
-#### **4️⃣ Deploy DAG**
+#### **5️⃣ Verify DAG**
 
 ```bash
 # Copy DAG to Airflow directory
@@ -454,18 +464,10 @@ docker images | grep quickshop
 
 ### Run Container
 
-#### **Windows (PowerShell)**
+#### **Windows (PowerShell/CMD)**
 
-```powershell
-docker run --rm `
-  -v "${PWD}\data:/app/data" `
-  -v "${PWD}\output:/app/output" `
-  quickshop-etl:latest `
-  --input-dir data `
-  --output-dir output `
-  --start-date 2025-10-23 `
-  --end-date 2025-10-26 `
-  --output-format parquet
+```bash
+docker run --rm -v "%cd%/data:/app/data" -v "%cd%/output:/app/output" quickshop_etl:latest --input-dir data --output-dir output --start-date 2025-10-23 --end-date 2025-10-26
 ```
 
 #### **Linux / macOS**
@@ -650,7 +652,7 @@ docker run --rm `
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache License 2 - see the [LICENSE](LICENSE) file for details.
 
 ---
 
@@ -660,9 +662,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 *Data Scientist | ML & Data Engineer*
 
 📍 Aligarh, Uttar Pradesh, India  
-🔗 [LinkedIn](https://linkedin.com/in/faheemkhan0817)  
+🔗 [LinkedIn](www.linkedin.com/in/faheemkhanml)  
 🐙 [GitHub](https://github.com/FaheemKhan0817)  
-✉️ faheemkhan0817@gmail.com
+✉️ faheemthakur23@gmail.com
 
 ---
 
